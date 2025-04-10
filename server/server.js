@@ -1,84 +1,75 @@
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const mysql = require('mysql2');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+// server.js
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import mysql from 'mysql2';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
 const app = express();
+const PORT = 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
 
 const db = mysql.createConnection({
-  host: 'localhost',
+  host: '127.0.0.1',
   user: 'root',
-  password: '',
-  database: 'diet_manager'
+  password: 'Suman@110473',
+  database: 'dietfit',
 });
 
-// Register
+db.connect((err) => {
+  if (err) console.error('❌ DB error:', err.message);
+  else console.log('✅ MySQL Connected');
+});
+
+// Signup
 app.post('/api/register', async (req, res) => {
-  const {
-    name, email, password, age, weight, height, gender,
-    activity_level, goal, is_diabetic, is_pregnant,
-    preference, allergies, dislikes
-  } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  db.query(
-    'INSERT INTO Users (name, email, password, age, weight, height, gender, activity_level, goal, is_diabetic, is_pregnant, preference, allergies, dislikes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [name, email, hashedPassword, age, weight, height, gender, activity_level, goal, is_diabetic, is_pregnant, preference, allergies, dislikes],
-    (err, result) => {
-      if (err) return res.status(500).send(err);
-      res.send({ success: true });
-    }
-  );
+  const { name, email, password } = req.body;
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+    db.query(
+      'INSERT INTO Users (name, email, password) VALUES (?, ?, ?)',
+      [name, email, hashed],
+      (err) => {
+        if (err) {
+          if (err.code === 'ER_DUP_ENTRY') return res.status(400).send({ message: 'Email already exists' });
+          return res.status(500).send({ message: 'Database error' });
+        }
+        res.send({ message: 'User registered successfully' });
+      }
+    );
+  } catch (err) {
+    res.status(500).send({ message: 'Server error' });
+  }
 });
 
 // Login
 app.post('/api/login', (req, res) => {
   const { email, password } = req.body;
-  db.query('SELECT * FROM Users WHERE email = ?', [email], async (err, users) => {
-    if (err || users.length === 0) return res.status(401).send('Invalid credentials');
-    const isMatch = await bcrypt.compare(password, users[0].password);
-    if (!isMatch) return res.status(401).send('Invalid password');
-    const token = jwt.sign({ id: users[0].id }, 'secret');
-    res.send({ token });
+  db.query('SELECT * FROM Users WHERE email = ?', [email], async (err, results) => {
+    if (err || results.length === 0) return res.status(401).send({ message: 'Invalid email' });
+    const user = results[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).send({ message: 'Incorrect password' });
+    const token = jwt.sign({ id: user.id }, 'secret_key', { expiresIn: '7d' });
+    res.send({ token, user: { id: user.id, name: user.name, email: user.email } });
   });
 });
 
-// Get Foods
-app.get('/api/foods', (req, res) => {
-  const { preference, allergies, goal } = req.query;
-  let query = `SELECT * FROM Foods WHERE is_veg = ? AND suitable_for LIKE ?`;
-  db.query(query, [preference === 'veg', `%${goal}%`], (err, results) => {
-    if (err) return res.status(500).send(err);
-    const allergyList = allergies ? allergies.split(',') : [];
-    const filtered = results.filter(food => !allergyList.includes(food.name));
-    res.send(filtered);
+// Save User Details
+app.post('/api/user-details', (req, res) => {
+  const { user_id, age, weight, height, gender, activity_level } = req.body;
+  const sql = `INSERT INTO UserDetails (user_id, age, weight, height, gender, activity_level)
+               VALUES (?, ?, ?, ?, ?, ?)`;
+  db.query(sql, [user_id, age, weight, height, gender, activity_level], (err, result) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send({ message: 'Error saving details' });
+    }
+    res.send({ message: 'Details saved successfully' });
   });
 });
 
-// GET user progress (add this to server.js)
-app.get('/api/progress', (req, res) => {
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).send('Unauthorized');
-    const decoded = jwt.verify(token, 'secret');
-    db.query('SELECT date, weight, calories_consumed FROM Progress WHERE user_id = ?', [decoded.id], (err, rows) => {
-      if (err) return res.status(500).send(err);
-      res.send(rows);
-    });
-  });
-
-  app.get('/api/progress/:userId', (req, res) => {
-    const { userId } = req.params;
-    db.query(
-      'SELECT date, weight, calories_consumed FROM Progress WHERE user_id = ? ORDER BY date',
-      [userId],
-      (err, result) => {
-        if (err) return res.status(500).send(err);
-        res.send(result);
-      }
-    );
-  });
-  
-  
+app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));

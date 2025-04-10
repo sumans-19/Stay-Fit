@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+// Login.jsx
+import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -11,37 +12,36 @@ const Login = () => {
     e.preventDefault();
     try {
       const res = await axios.post('http://localhost:3000/api/login', { email, password });
-      localStorage.setItem('token', res.data.token);
+      const { token, user } = res.data;
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userToken', token);
       navigate('/dashboard');
     } catch (err) {
-      alert('Login failed.');
+      alert(err.response?.data?.message || 'Login failed!');
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
-      <form onSubmit={handleLogin} className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-300 to-blue-200">
+      <form onSubmit={handleLogin} className="bg-white shadow-lg rounded-lg p-8 w-full max-w-md animate-fade-in">
+        <h2 className="text-2xl font-bold text-center mb-6 text-purple-700">Login</h2>
         <input
-          className="w-full mb-4 p-2 border rounded"
           type="email"
           placeholder="Email"
+          className="w-full border px-4 py-2 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-400"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
         <input
-          className="w-full mb-4 p-2 border rounded"
           type="password"
           placeholder="Password"
+          className="w-full border px-4 py-2 rounded-lg mb-6 focus:outline-none focus:ring-2 focus:ring-purple-400"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button
-          className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
-          type="submit"
-        >
+        <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition duration-300">
           Login
         </button>
       </form>
